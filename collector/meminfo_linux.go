@@ -27,33 +27,40 @@ import (
 	"strings"
 )
 
+//定义了一个名为reParens的正则表达式变量，用于匹配括号中的内容
 var (
 	reParens = regexp.MustCompile(`\((.*)\)`)
 )
 
+//定义了getMemInfo方法，它接收无参数，并返回一个map[string]float64类型和一个error类型的值。
+//该方法用于获取meminfo文件的内容，并将其解析为内存信息
 func (c *meminfoCollector) getMemInfo() (map[string]float64, error) {
 	//打开一个名为"meminfo"的文件，该文件位于Linux系统的/proc目录下，用于获取内存信息。如果有错误发生，将返回err
 	file, err := os.Open(procFilePath("meminfo"))
 	if err != nil {
 		return nil, err
 	}
+	//在函数返回之前，延迟关闭file文件
 	defer file.Close()
 
-	return parseMemInfo(file)
+	return parseMemInfo(file) //调用parseMemInfo函数，将打开的文件file作为参数进行解析
 }
 
+//定义了parseMemInfo函数，它接收一个io.Reader类型的参数r，并返回一个map[string]float64类型的值和一个error类型的值。
+//该函数用于解析从meminfo文件读取的内容，并将其转换为内存信息的键值对
 func parseMemInfo(r io.Reader) (map[string]float64, error) {
 	var (
+		//定义了memInfo变量，类型为map[string]float64，用于存储解析后的内存信息。
 		memInfo = map[string]float64{}
-		//创建一个针对打开的文件的扫描器
+		//创建一个针对读取器r的bufio.Scanner扫描器
 		scanner = bufio.NewScanner(r)
 	)
 
-	for scanner.Scan() { //开始一个循环，扫描器每次读取文件的一行
-		line := scanner.Text()
-		parts := strings.Fields(line) //使用strings.Fields函数将当前行分割成多个字段，存储在名为parts的字符串切片中
+	for scanner.Scan() { //开始一个循环，循环遍历scanner扫描器读取的每一行
+		line := scanner.Text() //获取当前行的文本内容，并将其存储在line变量中
+		parts := strings.Fields(line) //使用strings.Fields函数将当前行拆分为多个字段，并将结果存储在parts字符串变量中
 		// Workaround for empty lines occasionally occur in CentOS 6.2 kernel 3.10.90.
-		if len(parts) == 0 { //检查字段的数量是否为0，如果是，则继续循环下一行
+		if len(parts) == 0 { //检查字段的数量是否为0，如果是，则继续循环下一行。目的是处理空行
 			continue
 		}
 		//将字段的第二个元素解析为float64类型的值，并将结果存储在fv变量中。如果有错误发生，将返回err
@@ -64,17 +71,19 @@ func parseMemInfo(r io.Reader) (map[string]float64, error) {
 		//将字段的第一个元素删除末尾的冒号，并将结果存储在key变量中
 		key := parts[0][:len(parts[0])-1] // remove trailing : from key
 		// Active(anon) -> Active_anon
+		//使用正则表达式reParens替换key中的括号内容为_${1}。
+		//这个替换的目的是将类似于"Active(anon)"的字段名称转换为"Active_anon"的形式
 		key = reParens.ReplaceAllString(key, "_${1}")
 		switch len(parts) {
-		case 2: // no unit
-		case 3: // has unit, we presume kB
-			fv *= 1024
-			key = key + "_bytes"
+		case 2: // no unit 如果字段数量为2，表示该行中的字段没有单位信息
+		case 3: // has unit, we presume kB 如果字段数量为3，表示该行中的字段包含单位信息，这里假设单位为kB
+			fv *= 1024 //将值fv乘以1024，将其转换为字节单位
+			key = key + "_bytes" //将key末尾添加"_bytes"后缀，用于表示以字节为单位的指标
 		default:
 			return nil, fmt.Errorf("invalid line in meminfo: %s", line)
 		}
-		memInfo[key] = fv
+		memInfo[key] = fv //将字段名称key作为键，对应的值fv作为值，存储到memInfo映射中
 	}
 
-	return memInfo, scanner.Err()
+	return memInfo, scanner.Err() //返回解析后的内存信息memInfo以及scanner扫描器的错误信息
 }
