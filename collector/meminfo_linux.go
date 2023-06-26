@@ -31,7 +31,6 @@ var (
 	reParens = regexp.MustCompile(`\((.*)\)`)
 )
 
-//定义了一个名为Update的方法，该方法接受一个类型为chan<- prometheus.Metric的通道ch，并返回一个error
 func (c *meminfoCollector) getMemInfo() (map[string]float64, error) {
 	//打开一个名为"meminfo"的文件，该文件位于Linux系统的/proc目录下，用于获取内存信息。如果有错误发生，将返回err
 	file, err := os.Open(procFilePath("meminfo"))
