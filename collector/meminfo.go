@@ -57,7 +57,7 @@ func NewMeminfoCollector(logger log.Logger) (Collector, error) {
 // 定义了一个名为Update的方法，该方法接受一个类型为chan<- prometheus.Metric的通道ch，并返回一个error。它用于更新内存指标
 func (c *meminfoCollector) Update(ch chan<- prometheus.Metric) error {
 	var metricType prometheus.ValueType //定义变量metricType
-	//调用meminfo_linux.go中定义的方法getMemInfo()，获取特定平台的内存指标信息，并将结果存储在memInfo变量中。如果有错误发生，将返回err
+	//调用getMemInfo方法，获取特定平台的内存指标信息，并将结果存储在memInfo变量中。如果有错误发生，将返回err
 	memInfo, err := c.getMemInfo()
 	if err != nil {
 		return fmt.Errorf("couldn't get meminfo: %w", err)
