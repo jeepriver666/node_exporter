@@ -30,17 +30,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-//定义了一个常量 memInfoNumaSubsystem，它的值是字符串 "memory_numa"。这个常量表示内存统计信息的子系统名称
+//定义了一个常量 memInfoNumaSubsystem，它的值是字符串 "memory_numa"。
+//这个常量表示内存统计信息的子系统名称
 const (
 	memInfoNumaSubsystem = "memory_numa"
 )
 
 //定义了一个变量 meminfoNodeRE，它是一个正则表达式对象。
-//这个正则表达式用于匹配节点路径中的节点号。它会匹配类似于 "devices/system/node/node1" 的路径，
+//这个正则表达式用于匹配节点路径中的节点号。
+//它会匹配类似于 "devices/system/node/node1" 的路径，
 //并提取出节点号（在这个例子中是数字 1）
 var meminfoNodeRE = regexp.MustCompile(`.*devices/system/node/node([0-9]*)`)
 
-//定义了一个名为 meminfoMetric 的结构体类型。这个结构体用于存储内存指标的相关信息，包括指标名称、指标类型、节点号和数值
+//定义了一个名为 meminfoMetric 的结构体类型。
+//这个结构体用于存储内存指标的相关信息，包括指标名称、指标类型、节点号和数值
 type meminfoMetric struct {
 	metricName string
 	metricType prometheus.ValueType
@@ -55,8 +58,10 @@ type meminfoNumaCollector struct {
 	logger      log.Logger
 }
 
-//这是一个初始化函数 init，它在包被导入时自动执行。它调用了一个名为 registerCollector 的函数，
-//将收集器的名称、默认禁用状态和 NewMeminfoNumaCollector 函数作为参数传递给它。这个函数的作用是注册内存统计收集器
+//这是一个初始化函数 init，它在包被导入时自动执行。
+//它调用了一个名为 registerCollector 的函数，
+//将收集器的名称、默认禁用状态和 NewMeminfoNumaCollector 函数作为参数传递给它。
+//这个函数的作用是注册内存统计收集器
 func init() {
 	registerCollector("meminfo_numa", defaultDisabled, NewMeminfoNumaCollector)
 }
@@ -74,25 +79,25 @@ func NewMeminfoNumaCollector(logger log.Logger) (Collector, error) {
 }
 
 //这是 meminfoNumaCollector 结构体的一个方法 Update。
-//它实现了 Collector 接口中的 Update 方法。这个方法用于更新收集器中的指标，并将其发送到传入的通道 ch 中。
-//首先，它调用 getMemInfoNuma 函数获取内存统计信息，并将结果保存在 metrics 变量中。
-//然后，它遍历这些指标，并根据指标名称从 metricDescs 字段中获取相应的指标描述符 desc。
-//如果 desc 不存在，则创建一个新的指标描述符，并将其存储在 metricDescs 中。
-//最后，它使用 desc 和指标的类型、数值和节点号创建一个常量指标，并将其发送到通道 ch 中
+//它实现了 Collector 接口中的 Update 方法。
+//这个方法用于更新收集器中的指标，并将其发送到传入的通道 ch 中。
 func (c *meminfoNumaCollector) Update(ch chan<- prometheus.Metric) error {
-	metrics, err := getMemInfoNuma()
+	metrics, err := getMemInfoNuma() //调用 getMemInfoNuma 函数获取内存统计信息，并将结果保存在 metrics 变量中。
 	if err != nil {
 		return fmt.Errorf("couldn't get NUMA meminfo: %w", err)
 	}
-	for _, v := range metrics {
+	for _, v := range metrics { //遍历指标
+		////根据指标名称从 metricDescs 字段中获取相应的指标描述符 desc
 		desc, ok := c.metricDescs[v.metricName]
 		if !ok {
+			//如果 desc 不存在，则创建一个新的指标描述符，并将其存储在 metricDescs 中
 			desc = prometheus.NewDesc(
 				prometheus.BuildFQName(namespace, memInfoNumaSubsystem, v.metricName),
 				fmt.Sprintf("Memory information field %s.", v.metricName),
 				[]string{"node"}, nil)
 			c.metricDescs[v.metricName] = desc
 		}
+		//使用 desc 和指标的类型、数值和节点号创建一个常量指标，并将其发送到通道 ch 中
 		ch <- prometheus.MustNewConstMetric(desc, v.metricType, v.value, v.numaNode)
 	}
 	return nil
