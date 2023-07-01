@@ -171,15 +171,10 @@ func getMemInfoNuma() ([]meminfoMetric, error) {
 
 //这是 parseMemInfoNuma 函数，用于解析 meminfo 文件的内容。
 //它接收一个实现了 io.Reader 接口的参数 r，并返回解析得到的指标信息。
-
-//根据部分的数量，它判断是否有单位（如果有单位，则将数值乘以 1024）。
-//然后，它对指标名称进行处理，将括号中的内容替换为下划线。
-//最后，它将解析得到的指标信息添加到 memInfo 切片中，并继续下一行的扫描。
-//最后，它返回 memInfo 切片和扫描器的错误
 func parseMemInfoNuma(r io.Reader) ([]meminfoMetric, error) {
 	var (
 		memInfo []meminfoMetric //创建一个空的指标切片 memInfo
-		////使用 bufio.NewScanner 函数创建一个bufio.Scanner对象，用于逐行读取输入的内容
+		//使用 bufio.NewScanner 函数创建一个bufio.Scanner对象，用于逐行读取输入的内容
 		scanner = bufio.NewScanner(r)
 		re      = regexp.MustCompile(`\((.*)\)`) //定义了一个正则表达式对象re，用于匹配括号中的内容
 	)
@@ -211,7 +206,7 @@ func parseMemInfoNuma(r io.Reader) ([]meminfoMetric, error) {
 		// Active(anon) -> Active_anon
 		//使用正则表达式re替换metric中的括号内容，将括号内的内容替换为_${1}。
 		metric = re.ReplaceAllString(metric, "_${1}")
-		//将metric、prometheus.GaugeValue、parts[1]和fv作为字段值，创建一个meminfoMetric结构体
+		//将metric、prometheus.GaugeValue、parts[1]和fv作为字段值，创建一个meminfoMetric结构体，
 		//并将其追加到memInfo切片中
 		memInfo = append(memInfo, meminfoMetric{metric, prometheus.GaugeValue, parts[1], fv})
 	}
@@ -222,34 +217,37 @@ func parseMemInfoNuma(r io.Reader) ([]meminfoMetric, error) {
 
 //这是 parseMemInfoNumaStat 函数，用于解析 numastat 文件的内容。
 //它与 parseMemInfoNuma 函数类似，接收一个实现了 io.Reader 接口的参数 r 和一个节点号 nodeNumber，
-//并返回解析得到的指标信息。函数中首先创建一个空的指标切片 numaStat，
-//然后使用 bufio.NewScanner 函数创建一个扫描器。接下来，它开始逐行扫描输入。
-//对于每一行，它首先去除首尾的空白字符，并判断是否为空行，如果是则继续下一行的扫描。
-//然后，它将行按空白字符分割成多个部分，并将第二个部分解析为浮点数 fv。
-//然后，它将指标名称和节点号添加到 numaStat 切片中，并继续下一行的扫描。
-//最后，它返回 numaStat 切片和扫描器的错误
+//并返回解析得到的指标信息，返回一个[]meminfoMetric类型的切片和一个error类型的错误对象。
 func parseMemInfoNumaStat(r io.Reader, nodeNumber string) ([]meminfoMetric, error) {
 	var (
-		numaStat []meminfoMetric
+		numaStat []meminfoMetric //创建一个空的指标切片 numaStat
+		//使用 bufio.NewScanner 函数创建一个bufio.Scanner对象，用于逐行读取输入的内容
 		scanner  = bufio.NewScanner(r)
 	)
 
-	for scanner.Scan() {
+	for scanner.Scan() { //通过scanner.Scan()循环读取每一行的内容
+		//使用strings.TrimSpace()函数去除行首和行尾的空白字符，并将结果赋给line变量
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		if line == "" { //如果line为空字符串，则跳过当前循环
 			continue
 		}
+		//使用strings.Fields()函数将line按空白字符分割为多个部分，并将结果赋给parts变量
 		parts := strings.Fields(line)
-		if len(parts) != 2 {
+		if len(parts) != 2 { //如果parts的长度不等于2，则返回错误对象，指示行扫描没有返回2个字段
 			return nil, fmt.Errorf("line scan did not return 2 fields: %s", line)
 		}
 
+		//将parts[1]转换为float64类型的数值，并将结果赋给fv变量
 		fv, err := strconv.ParseFloat(parts[1], 64)
-		if err != nil {
+		if err != nil { //如果转换过程中发生错误，则返回错误对象，指示在numastat中存在无效的数值
 			return nil, fmt.Errorf("invalid value in numastat: %w", err)
 		}
 
+		//使用append()函数将包含节点编号的统计信息添加到numaStat切片中，
+		//其中字段名称为parts[0] + "_total"，指标类型为prometheus.CounterValue，节点编号为nodeNumber，值为fv
 		numaStat = append(numaStat, meminfoMetric{parts[0] + "_total", prometheus.CounterValue, nodeNumber, fv})
 	}
+	
+	//返回存储解析后的NUMA统计信息的numaStat切片，并返回scanner.Err()，表示解析过程中的错误（如果有）
 	return numaStat, scanner.Err()
 }
