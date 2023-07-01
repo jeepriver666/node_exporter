@@ -104,53 +104,68 @@ func (c *meminfoNumaCollector) Update(ch chan<- prometheus.Metric) error {
 }
 
 //这是 getMemInfoNuma 函数，用于获取内存统计信息。
+//该函数返回一个[]meminfoMetric类型的切片和一个error类型的错误对象
 func getMemInfoNuma() ([]meminfoMetric, error) {
+	//声明一个名为metrics的空切片，用于存储内存信息
 	var (
 		metrics []meminfoMetric
 	)
 
-        //使用 filepath.Glob 函数查找匹配模式 "devices/system/node/node[0-9]*" 的节点路径
+        //使用 filepath.Glob 函数查找匹配模式 "devices/system/node/node[0-9]*" 的文件路径
+	//该模式用于找到NUMA节点。如果发生错误，则返回nil和错误对象
 	nodes, err := filepath.Glob(sysFilePath("devices/system/node/node[0-9]*"))
 	if err != nil {
 		return nil, err
 	}
 	for _, node := range nodes {
-		//打开每个节点的 meminfo 文件
+		//打开每个节点的 meminfo 文件，将其赋值给meminfoFile变量
+		//如果发生错误，则返回nil和错误对象
 		meminfoFile, err := os.Open(filepath.Join(node, "meminfo"))
 		if err != nil {
 			return nil, err
 		}
+		//使用defer关键字延迟关闭meminfoFile，确保它在后续代码执行完毕后被关闭
 		defer meminfoFile.Close()
 
-		//调用 parseMemInfoNuma 函数解析文件的内容
+		//调用parseMemInfoNuma()函数，传递meminfoFile作为参数，以解析文件中的内存信息。
+		//将返回值赋给numaInfo变量。如果发生错误，则返回nil和错误对象
 		numaInfo, err := parseMemInfoNuma(meminfoFile)
 		if err != nil {
 			return nil, err
 		}
-		//将解析得到的指标信息添加到 metrics 切片中，并返回该切片
+		
+		//使用append()函数将numaInfo中的所有元素追加到metrics切片中
 		metrics = append(metrics, numaInfo...)
 
-		////打开每个节点的 numastat 文件
+		//打开每个节点的 numastat 文件，并将其赋值给numastatFile变量。
+		//如果发生错误，则返回nil和错误对象
 		numastatFile, err := os.Open(filepath.Join(node, "numastat"))
 		if err != nil {
 			return nil, err
 		}
+		//使用defer关键字延迟关闭numastatFile
 		defer numastatFile.Close()
 
+		//使用正则表达式（meminfoNodeRE.FindStringSubmatch(node)）从当前节点路径中提取节点编号。
+		//将提取的节点编号存储在nodeNumber变量中。
+		//如果提取失败（nodeNumber == nil），则返回错误对象，指示设备节点字符串与正则表达式不匹配
 		nodeNumber := meminfoNodeRE.FindStringSubmatch(node)
 		if nodeNumber == nil {
 			return nil, fmt.Errorf("device node string didn't match regexp: %s", node)
 		}
 
-		//调用 parseMemInfoNumaStat 函数解析文件的内容
+		//调用parseMemInfoNumaStat()函数，传递numastatFile和提取的节点编号nodeNumber[1]作为参数，
+		//以解析文件中的NUMA统计信息。将返回值赋给numaStat变量。
+		//如果发生错误，则返回nil和错误对象
 		numaStat, err := parseMemInfoNumaStat(numastatFile, nodeNumber[1])
 		if err != nil {
 			return nil, err
 		}
-		//将解析得到的指标信息添加到 metrics 切片中，并返回该切片
+		//使用append()函数将numaStat中的所有元素追加到metrics切片中
 		metrics = append(metrics, numaStat...)
 	}
 
+	//在遍历完所有NUMA节点后，返回包含所有内存信息的metrics切片，并返回nil错误，表示成功
 	return metrics, nil
 }
 
