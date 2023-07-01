@@ -104,32 +104,33 @@ func (c *meminfoNumaCollector) Update(ch chan<- prometheus.Metric) error {
 }
 
 //这是 getMemInfoNuma 函数，用于获取内存统计信息。
-//它首先使用 filepath.Glob 函数查找匹配模式 "devices/system/node/node[0-9]*" 的节点路径。
-//然后，它打开每个节点的 meminfo 文件和 numastat 文件，
-//并分别调用 parseMemInfoNuma 和 parseMemInfoNumaStat 函数解析这些文件的内容。
-//最后，它将解析得到的指标信息添加到 metrics 切片中，并返回该切片
 func getMemInfoNuma() ([]meminfoMetric, error) {
 	var (
 		metrics []meminfoMetric
 	)
 
+        //使用 filepath.Glob 函数查找匹配模式 "devices/system/node/node[0-9]*" 的节点路径
 	nodes, err := filepath.Glob(sysFilePath("devices/system/node/node[0-9]*"))
 	if err != nil {
 		return nil, err
 	}
 	for _, node := range nodes {
+		//打开每个节点的 meminfo 文件
 		meminfoFile, err := os.Open(filepath.Join(node, "meminfo"))
 		if err != nil {
 			return nil, err
 		}
 		defer meminfoFile.Close()
 
+		//调用 parseMemInfoNuma 函数解析文件的内容
 		numaInfo, err := parseMemInfoNuma(meminfoFile)
 		if err != nil {
 			return nil, err
 		}
+		//将解析得到的指标信息添加到 metrics 切片中，并返回该切片
 		metrics = append(metrics, numaInfo...)
 
+		////打开每个节点的 numastat 文件
 		numastatFile, err := os.Open(filepath.Join(node, "numastat"))
 		if err != nil {
 			return nil, err
@@ -141,10 +142,12 @@ func getMemInfoNuma() ([]meminfoMetric, error) {
 			return nil, fmt.Errorf("device node string didn't match regexp: %s", node)
 		}
 
+		//调用 parseMemInfoNumaStat 函数解析文件的内容
 		numaStat, err := parseMemInfoNumaStat(numastatFile, nodeNumber[1])
 		if err != nil {
 			return nil, err
 		}
+		//将解析得到的指标信息添加到 metrics 切片中，并返回该切片
 		metrics = append(metrics, numaStat...)
 	}
 
