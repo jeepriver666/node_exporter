@@ -171,46 +171,52 @@ func getMemInfoNuma() ([]meminfoMetric, error) {
 
 //这是 parseMemInfoNuma 函数，用于解析 meminfo 文件的内容。
 //它接收一个实现了 io.Reader 接口的参数 r，并返回解析得到的指标信息。
-//函数中首先创建一个空的指标切片 memInfo，然后使用 bufio.NewScanner 函数创建一个扫描器。
-//接下来，它定义了一个正则表达式对象 re，用于匹配括号中的内容。
-//然后，它开始逐行扫描输入。对于每一行，它首先去除首尾的空白字符，并判断是否为空行，
-//如果是则继续下一行的扫描。然后，它将行按空白字符分割成多个部分，并将第四个部分解析为浮点数 fv。
+
 //根据部分的数量，它判断是否有单位（如果有单位，则将数值乘以 1024）。
 //然后，它对指标名称进行处理，将括号中的内容替换为下划线。
 //最后，它将解析得到的指标信息添加到 memInfo 切片中，并继续下一行的扫描。
 //最后，它返回 memInfo 切片和扫描器的错误
 func parseMemInfoNuma(r io.Reader) ([]meminfoMetric, error) {
 	var (
-		memInfo []meminfoMetric
+		memInfo []meminfoMetric //创建一个空的指标切片 memInfo
+		////使用 bufio.NewScanner 函数创建一个bufio.Scanner对象，用于逐行读取输入的内容
 		scanner = bufio.NewScanner(r)
-		re      = regexp.MustCompile(`\((.*)\)`)
+		re      = regexp.MustCompile(`\((.*)\)`) //定义了一个正则表达式对象re，用于匹配括号中的内容
 	)
 
-	for scanner.Scan() {
+	for scanner.Scan() { //通过scanner.Scan()循环读取每一行的内容,逐行扫描输入
+		//使用strings.TrimSpace()函数去除行首和行尾的空白字符，并将结果赋给line变量
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		if line == "" { //如果line为空字符串，则跳过当前循环
 			continue
 		}
+		//使用strings.Fields()函数将line按空白字符分割为多个部分，并将结果赋给parts变量
 		parts := strings.Fields(line)
 
+		//将parts[3]转换为float64类型的数值，并将结果赋给fv变量
 		fv, err := strconv.ParseFloat(parts[3], 64)
-		if err != nil {
+		if err != nil { //如果转换过程中发生错误，则返回错误对象，指示在meminfo中存在无效的数值
 			return nil, fmt.Errorf("invalid value in meminfo: %w", err)
 		}
-		switch l := len(parts); {
-		case l == 4: // no unit
-		case l == 5 && parts[4] == "kB": // has unit
-			fv *= 1024
-		default:
+		switch l := len(parts); { //根据parts的长度进行不同的处理
+		case l == 4: // no unit 如果parts长度为4，则表示没有单位，不进行任何处理
+		case l == 5 && parts[4] == "kB": // has unit 如果parts长度为5且parts[4]等于"kB"，则表示有单位
+			fv *= 1024 //将fv乘以1024转换为字节
+		default: //否则，返回错误对象，指示在meminfo中存在无效的行
 			return nil, fmt.Errorf("invalid line in meminfo: %s", line)
 		}
+		//去除parts[2]末尾的冒号，并将结果赋给metric变量
 		metric := strings.TrimRight(parts[2], ":")
 
 		// Active(anon) -> Active_anon
+		//使用正则表达式re替换metric中的括号内容，将括号内的内容替换为_${1}。
 		metric = re.ReplaceAllString(metric, "_${1}")
+		//将metric、prometheus.GaugeValue、parts[1]和fv作为字段值，创建一个meminfoMetric结构体
+		//并将其追加到memInfo切片中
 		memInfo = append(memInfo, meminfoMetric{metric, prometheus.GaugeValue, parts[1], fv})
 	}
 
+	//返回存储解析后的内存信息的memInfo切片，并返回scanner.Err()，表示解析过程中的错误（如果有）
 	return memInfo, scanner.Err()
 }
 
